@@ -25,9 +25,11 @@ If you need immediate logout, account-wide revocation, refresh token rotation, o
 ## Installation
 
 ```bash
-pnpm add nestjs-jwt-shield jose zod
-pnpm add @nestjs/common @nestjs/core reflect-metadata rxjs
+pnpm add nestjs-jwt-shield
 ```
+
+`jose` and `zod` are installed automatically as package dependencies.
+`@nestjs/common`, `@nestjs/core`, `reflect-metadata`, and `rxjs` are peer dependencies and should already exist in a NestJS application.
 
 ## Basic Configuration
 
