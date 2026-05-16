@@ -2,7 +2,7 @@
 
 Secure-by-default JWT authentication for NestJS.
 
-This package provides an opinionated NestJS layer around `jose` with strict claim validation, safe defaults, route guards, current-user decorators, public-route decorators, and scope checks.
+This package provides an opinionated NestJS layer for JWT authentication. It uses `jose` under the hood for signing and verification, while adding strict claim validation, safe defaults, route guards, decorators, and scope checks.
 
 ## Install
 
