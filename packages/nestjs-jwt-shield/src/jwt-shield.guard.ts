@@ -1,0 +1,114 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  UnauthorizedException
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import {
+  JWT_SHIELD_PUBLIC_METADATA,
+  JWT_SHIELD_SCOPES_METADATA
+} from './jwt-shield.constants';
+import {
+  JwtShieldError,
+  JwtShieldMissingScopeError,
+  JwtShieldMissingTokenError
+} from './errors/jwt-shield.errors';
+import { JwtShieldService } from './jwt-shield.service';
+
+interface JwtShieldHttpRequest {
+  headers?: {
+    authorization?: string | string[];
+  };
+  user?: unknown;
+}
+
+@Injectable()
+export class JwtShieldGuard implements CanActivate {
+  constructor(
+    @Inject(Reflector)
+    private readonly reflector: Reflector,
+    @Inject(JwtShieldService)
+    private readonly jwtShield: JwtShieldService<any>
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (this.isPublicRoute(context)) {
+      return true;
+    }
+
+    try {
+      const request = context.switchToHttp().getRequest<JwtShieldHttpRequest>();
+      const token = extractBearerToken(request.headers?.authorization);
+      const user = await this.jwtShield.verifyAccessToken(token);
+
+      this.assertRequiredScopes(context, user);
+      request.user = user;
+
+      return true;
+    } catch (error) {
+      if (error instanceof JwtShieldMissingScopeError) {
+        throw new ForbiddenException(error.message);
+      }
+
+      if (error instanceof JwtShieldError) {
+        throw new UnauthorizedException(error.message);
+      }
+
+      throw error;
+    }
+  }
+
+  private isPublicRoute(context: ExecutionContext): boolean {
+    return (
+      this.reflector.getAllAndOverride<boolean>(JWT_SHIELD_PUBLIC_METADATA, [
+        context.getHandler(),
+        context.getClass()
+      ]) ?? false
+    );
+  }
+
+  private assertRequiredScopes(
+    context: ExecutionContext,
+    user: { scopes?: unknown }
+  ): void {
+    const requiredScopes =
+      this.reflector.getAllAndOverride<string[]>(JWT_SHIELD_SCOPES_METADATA, [
+        context.getHandler(),
+        context.getClass()
+      ]) ?? [];
+
+    if (requiredScopes.length === 0) {
+      return;
+    }
+
+    const userScopes = Array.isArray(user.scopes)
+      ? user.scopes.filter((scope): scope is string => typeof scope === 'string')
+      : [];
+    const missingScopes = requiredScopes.filter(
+      (scope) => !userScopes.includes(scope)
+    );
+
+    if (missingScopes.length > 0) {
+      throw new JwtShieldMissingScopeError(missingScopes);
+    }
+  }
+}
+
+function extractBearerToken(authorization: string | string[] | undefined): string {
+  if (typeof authorization !== 'string') {
+    throw new JwtShieldMissingTokenError();
+  }
+
+  const [scheme, token, extra] = authorization.trim().split(/\s+/);
+
+  if (scheme !== 'Bearer' || !token || extra) {
+    throw new JwtShieldMissingTokenError(
+      'Authorization header must use the format: Bearer <token>.'
+    );
+  }
+
+  return token;
+}
