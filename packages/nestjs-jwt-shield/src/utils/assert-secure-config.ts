@@ -8,6 +8,7 @@ import type {
 import { durationToSeconds } from './time';
 
 export const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+export const DEFAULT_IMPERSONATION_TOKEN_TTL_SECONDS = 10 * 60;
 export const DEFAULT_MAX_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 export const DEFAULT_CLOCK_TOLERANCE_SECONDS = 5;
 export const MIN_HS256_SECRET_BYTES = 32;
@@ -57,6 +58,11 @@ export function resolveJwtShieldOptions<
     DEFAULT_ACCESS_TOKEN_TTL_SECONDS,
     'accessTokenTtl'
   );
+  const impersonationTokenTtlSeconds = readDuration(
+    options.impersonationTokenTtl,
+    DEFAULT_IMPERSONATION_TOKEN_TTL_SECONDS,
+    'impersonationTokenTtl'
+  );
   const maxAccessTokenTtlSeconds = readDuration(
     options.maxAccessTokenTtl,
     DEFAULT_MAX_ACCESS_TOKEN_TTL_SECONDS,
@@ -79,6 +85,11 @@ export function resolveJwtShieldOptions<
     maxAccessTokenTtlSeconds,
     'accessTokenTtl'
   );
+  assertAccessTokenTtlWithinLimit(
+    impersonationTokenTtlSeconds,
+    maxAccessTokenTtlSeconds,
+    'impersonationTokenTtl'
+  );
 
   const resolvedOptions = {
     issuer,
@@ -86,6 +97,7 @@ export function resolveJwtShieldOptions<
     algorithm: options.algorithm,
     secret,
     accessTokenTtlSeconds,
+    impersonationTokenTtlSeconds,
     maxAccessTokenTtlSeconds,
     strict,
     isGlobal: options.isGlobal ?? false,

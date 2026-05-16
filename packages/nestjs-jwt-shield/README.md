@@ -43,6 +43,75 @@ const claimsSchema = z.object({
 export class AppModule {}
 ```
 
+## Impersonation
+
+Impersonation support is optional and generic. Your app decides whether an actor can impersonate a subject; the library handles safe JWT shape, validation, and route-level DX.
+
+```ts
+const claimsSchema = z.discriminatedUnion('type', [
+  z.object({
+    sub: z.string().uuid(),
+    email: z.string().email().optional(),
+    scopes: z.array(z.string()).optional(),
+    type: z.literal('access')
+  }),
+  z.object({
+    sub: z.string().uuid(),
+    email: z.string().email().optional(),
+    scopes: z.array(z.string()).optional(),
+    type: z.literal('impersonation'),
+    act: z.object({
+      sub: z.string().uuid(),
+      email: z.string().email().optional()
+    }),
+    impersonation: z.object({
+      startedAt: z.number().int(),
+      reason: z.string().optional()
+    })
+  })
+]);
+
+const token = await jwtShield.signImpersonationToken({
+  actor: { sub: admin.id, email: admin.email },
+  subject: { sub: user.id, email: user.email, scopes: user.scopes },
+  reason: 'support'
+});
+```
+
+```ts
+import {
+  CurrentActor,
+  CurrentUser,
+  DenyImpersonation,
+  RequireImpersonation
+} from 'nestjs-jwt-shield';
+
+@DenyImpersonation()
+changePassword() {
+  return { ok: true };
+}
+
+@RequireImpersonation()
+actor(@CurrentUser() user: unknown, @CurrentActor() actor: unknown) {
+  return { user, actor };
+}
+```
+
+For primary-token plus impersonation-token flows:
+
+```ts
+const session = await jwtShield.verifyImpersonationSession({
+  primaryToken,
+  impersonationToken,
+  actorId: 'sub',
+  impersonationActorId: 'act.sub'
+});
+
+request.primaryAuth = session.primary;
+request.impersonationAuth = session.impersonation;
+request.auth = session.current;
+```
+
 ## Sign Tokens
 
 ```ts
@@ -85,5 +154,8 @@ export class AppController {
 
 - JWT access tokens are stateless and cannot be revoked immediately without external state.
 - Use short-lived access tokens.
+- Impersonation tokens default to 10 minutes and should usually be shorter than regular access tokens.
+- Use `@DenyImpersonation()` on high-risk operations such as password changes, billing, payouts, API key management, or tenant administration.
 - Keep secrets, passwords, API keys, refresh tokens, and private user data out of JWT payloads.
+- Real impersonation audit logs and immediate revocation still require a database or Redis.
 - This MVP supports `HS256`; RS256, EdDSA, JWKS, and key rotation are planned future work.

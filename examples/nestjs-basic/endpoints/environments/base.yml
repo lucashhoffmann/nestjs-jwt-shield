@@ -1,0 +1,16 @@
+name: base
+variables:
+  - name: url
+    value: http://localhost:3000
+  - name: admin_email
+    value: admin@example.com
+  - name: user_email
+    value: user@example.com
+  - name: password
+    value: "123456"
+  - name: admin_token
+    value: ""
+  - name: user_token
+    value: ""
+  - name: impersonation_token
+    value: ""

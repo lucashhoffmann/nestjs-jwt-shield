@@ -10,6 +10,7 @@ Secure-by-default JWT authentication for NestJS.
 - Requires `exp`, `iat`, `iss`, `aud`, and `sub`.
 - Validates application claims with Zod.
 - Provides `JwtShieldGuard`, `@CurrentUser()`, `@Scopes()`, and `@Public()`.
+- Provides optional impersonation helpers with `type: 'impersonation'`, the standard JWT `act` actor claim, `@CurrentActor()`, `@DenyImpersonation()`, and `@RequireImpersonation()`.
 - Fails fast when configuration is unsafe.
 - Keeps the API small and NestJS-native.
 
@@ -42,6 +43,26 @@ const accessTokenClaimsSchema = z.object({
   type: z.literal('access')
 });
 
+const impersonationTokenClaimsSchema = z.object({
+  sub: z.string().uuid(),
+  email: z.string().email().optional(),
+  scopes: z.array(z.string()).optional(),
+  type: z.literal('impersonation'),
+  act: z.object({
+    sub: z.string().uuid(),
+    email: z.string().email().optional()
+  }),
+  impersonation: z.object({
+    startedAt: z.number().int(),
+    reason: z.string().optional()
+  })
+});
+
+const claimsSchema = z.discriminatedUnion('type', [
+  accessTokenClaimsSchema,
+  impersonationTokenClaimsSchema
+]);
+
 @Module({
   imports: [
     JwtShieldModule.register({
@@ -52,7 +73,8 @@ const accessTokenClaimsSchema = z.object({
       algorithm: 'HS256',
       secret: process.env.JWT_SECRET!,
       accessTokenTtl: '15m',
-      claimsSchema: accessTokenClaimsSchema
+      impersonationTokenTtl: '10m',
+      claimsSchema
     })
   ]
 })
@@ -88,6 +110,70 @@ export class LoginUseCase {
     return { accessToken, tokenType: 'Bearer' };
   }
 }
+```
+
+## Impersonation
+
+Impersonation is optional and generic. The library does not decide who is allowed to impersonate whom; your application still owns that authorization rule. Once your app allows it, `nestjs-jwt-shield` makes the token shape safe and predictable:
+
+- The effective/current user stays in `sub` and the normal custom claims.
+- The original actor is stored in the standard JWT `act` claim.
+- The token is marked with `type: 'impersonation'`.
+- `@CurrentActor()` returns the original actor.
+- `@DenyImpersonation()` blocks impersonated access to sensitive routes.
+- `@RequireImpersonation()` makes support/debug routes accept only impersonation tokens.
+
+```ts
+const token = await jwtShield.signImpersonationToken({
+  actor: {
+    sub: admin.id,
+    email: admin.email
+  },
+  subject: {
+    sub: user.id,
+    email: user.email,
+    scopes: user.scopes
+  },
+  reason: 'support'
+});
+```
+
+```ts
+import {
+  CurrentActor,
+  CurrentUser,
+  DenyImpersonation,
+  RequireImpersonation,
+  Scopes
+} from 'nestjs-jwt-shield';
+
+@DenyImpersonation()
+@Scopes('admin:read')
+@Post('auth/impersonate/:userId')
+impersonate(@CurrentUser() admin: AdminClaims) {
+  // Authorize and issue an impersonation token in your use case.
+}
+
+@RequireImpersonation()
+@Get('auth/actor')
+actor(@CurrentUser() user: UserClaims, @CurrentActor() actor: ActorClaims) {
+  return { actingAs: user.sub, actor: actor.sub };
+}
+```
+
+If your project uses two-token impersonation, such as a primary token plus `x-impersonation-token`, you can validate the relationship explicitly:
+
+```ts
+const session = await jwtShield.verifyImpersonationSession({
+  primaryToken,
+  impersonationToken,
+  actorId: 'sub',
+  impersonationActorId: 'act.sub'
+});
+
+request.primaryAuth = session.primary;
+request.impersonationAuth = session.impersonation;
+request.auth = session.current;
 ```
 
 ## Protected Routes
@@ -143,8 +229,11 @@ export class AccountController {
 - The algorithm is fixed from configuration. The library never trusts a dynamic JWT header algorithm as the source of truth.
 - `alg=none` is not accepted.
 - Strict mode is enabled by default with a 15 minute access-token TTL and a maximum of 1 hour.
+- Impersonation tokens default to a shorter 10 minute TTL and are still bounded by `maxAccessTokenTtl`.
 - The library rejects obvious sensitive claim names such as `password`, `secret`, `refreshToken`, `apiKey`, and `privateKey` in strict mode.
 - Do not put secrets, passwords, API keys, refresh tokens, or private user data in JWT payloads.
+- Use `@DenyImpersonation()` on high-risk routes such as password changes, payouts, billing changes, API key management, or tenant administration.
+- Real impersonation audit logs and immediate impersonation revocation still require a database or Redis.
 
 ## Example App
 
@@ -176,7 +265,20 @@ curl http://localhost:3000/public
 curl http://localhost:3000/auth/me -H "authorization: Bearer <token>"
 curl http://localhost:3000/users -H "authorization: Bearer <token>"
 curl http://localhost:3000/admin -H "authorization: Bearer <token>"
+curl -X POST http://localhost:3000/auth/impersonate/22222222-2222-4222-8222-222222222222 \
+  -H "authorization: Bearer <admin-token>"
+curl http://localhost:3000/auth/actor -H "authorization: Bearer <impersonation-token>"
 ```
+
+You can also open the Bruno/OpenCollection API client collection from:
+
+```txt
+examples/nestjs-basic/endpoints
+```
+
+Use the `base` environment from Bruno's environment selector. If the selector still says `Environments`, no environment is active. The collection also defines non-secret defaults at collection level so requests can still run locally, but selecting `base` lets `Auth / login admin` and `Auth / login user` persist `admin_token` and `user_token` back into `environments/base.yml`.
+
+Run `Auth / login admin` before admin-token requests such as `Auth / me`, `Users / list users`, and `Admin / get admin`. Run `Auth / impersonate user` to create `impersonation_token`, then try `Auth / actor as impersonated user` and `Admin / get admin as impersonated user`. Run `Auth / login user` before the `as basic user` requests; those intentionally use `user_token`, not `admin_token`, so `Admin / get admin as basic user` should return `403`.
 
 Fake users:
 

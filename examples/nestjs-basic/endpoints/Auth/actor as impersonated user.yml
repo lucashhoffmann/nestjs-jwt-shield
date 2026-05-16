@@ -1,0 +1,46 @@
+info:
+  name: actor as impersonated user
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{url}}/auth/actor"
+  headers:
+    - name: authorization
+      value: Bearer {{impersonation_token}}
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const token = bru.getEnvVar("impersonation_token") || bru.getVar("impersonation_token");
+
+        if (!token) {
+          throw new Error("Missing impersonation_token. Run Auth / impersonate user first.");
+        }
+
+        req.setHeader("authorization", `Bearer ${token}`);
+    - type: after-response
+      code: |-
+        const body = res.getBody();
+        const status = typeof res.getStatus === "function" ? res.getStatus() : res.status;
+
+        if (status !== 200) {
+          throw new Error(`Expected 200, got ${status}`);
+        }
+
+        if (body?.actingAs?.email !== "user@example.com") {
+          throw new Error(`Expected actingAs user@example.com, got: ${JSON.stringify(body)}`);
+        }
+
+        if (body?.actor?.email !== "admin@example.com") {
+          throw new Error(`Expected actor admin@example.com, got: ${JSON.stringify(body)}`);
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

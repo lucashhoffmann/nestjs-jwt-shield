@@ -1,6 +1,6 @@
 import { Controller, Get } from "@nestjs/common";
 import { CurrentUser, Scopes } from "nestjs-jwt-shield";
-import type { AccessTokenClaims } from "../auth/claims/access-token.claims";
+import type { JwtClaims } from "../auth/claims/access-token.claims";
 import { ListUsersUseCase } from "./application/use-cases/list-users.use-case";
 
 @Controller("users")
@@ -9,7 +9,7 @@ export class UsersController {
 
   @Scopes("users:read")
   @Get()
-  async listUsers(@CurrentUser() user: AccessTokenClaims) {
+  async listUsers(@CurrentUser() user: JwtClaims) {
     const result = await this.listUsersUseCase.execute();
 
     return {

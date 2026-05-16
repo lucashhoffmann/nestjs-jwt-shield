@@ -1,0 +1,45 @@
+info:
+  name: login admin
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{url}}/auth/login"
+  headers:
+    - name: content-type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{admin_email}}",
+        "password": "{{password}}"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const body = res.getBody();
+
+        if (body?.accessToken) {
+          const token = String(body.accessToken);
+          bru.setVar("admin_token", token);
+
+          try {
+            bru.setEnvVar("admin_token", token, { persist: true });
+            console.log("admin_token saved with persist:", token);
+          } catch (error) {
+            console.warn("admin_token saved as runtime var only. Select the base environment to persist it.", error);
+          }
+        } else {
+          console.error("accessToken not found in response:", body);
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

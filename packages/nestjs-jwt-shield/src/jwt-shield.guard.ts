@@ -9,13 +9,17 @@ import {
 import { Reflector } from '@nestjs/core';
 import {
   JWT_SHIELD_PUBLIC_METADATA,
+  JWT_SHIELD_IMPERSONATION_POLICY_METADATA,
   JWT_SHIELD_SCOPES_METADATA
 } from './jwt-shield.constants';
 import {
   JwtShieldError,
+  JwtShieldInvalidImpersonationError,
   JwtShieldMissingScopeError,
   JwtShieldMissingTokenError
 } from './errors/jwt-shield.errors';
+import type { JwtShieldImpersonationPolicy } from './decorators/impersonation.decorator';
+import { isJwtShieldImpersonationClaims } from './impersonation/jwt-shield-impersonation';
 import { JwtShieldService } from './jwt-shield.service';
 
 interface JwtShieldHttpRequest {
@@ -44,12 +48,17 @@ export class JwtShieldGuard implements CanActivate {
       const token = extractBearerToken(request.headers?.authorization);
       const user = await this.jwtShield.verifyAccessToken(token);
 
+      this.assertImpersonationPolicy(context, user);
       this.assertRequiredScopes(context, user);
       request.user = user;
 
       return true;
     } catch (error) {
       if (error instanceof JwtShieldMissingScopeError) {
+        throw new ForbiddenException(error.message);
+      }
+
+      if (error instanceof JwtShieldInvalidImpersonationError) {
         throw new ForbiddenException(error.message);
       }
 
@@ -93,6 +102,35 @@ export class JwtShieldGuard implements CanActivate {
 
     if (missingScopes.length > 0) {
       throw new JwtShieldMissingScopeError(missingScopes);
+    }
+  }
+
+  private assertImpersonationPolicy(
+    context: ExecutionContext,
+    user: Record<string, unknown>
+  ): void {
+    const policy =
+      this.reflector.getAllAndOverride<JwtShieldImpersonationPolicy>(
+        JWT_SHIELD_IMPERSONATION_POLICY_METADATA,
+        [context.getHandler(), context.getClass()]
+      ) ?? 'allow';
+
+    if (policy === 'allow') {
+      return;
+    }
+
+    const isImpersonation = isJwtShieldImpersonationClaims(user);
+
+    if (policy === 'deny' && isImpersonation) {
+      throw new JwtShieldInvalidImpersonationError(
+        'Impersonation tokens are not allowed for this route.'
+      );
+    }
+
+    if (policy === 'require' && !isImpersonation) {
+      throw new JwtShieldInvalidImpersonationError(
+        'This route requires an impersonation token.'
+      );
     }
   }
 }

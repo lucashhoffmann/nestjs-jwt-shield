@@ -18,6 +18,7 @@ export interface JwtShieldModuleOptions<
   algorithm: JwtShieldAlgorithm;
   secret: string;
   accessTokenTtl?: JwtShieldDuration;
+  impersonationTokenTtl?: JwtShieldDuration;
   maxAccessTokenTtl?: JwtShieldDuration;
   strict?: boolean;
   isGlobal?: boolean;
@@ -46,6 +47,7 @@ export interface JwtShieldResolvedOptions<
   algorithm: JwtShieldAlgorithm;
   secret: string;
   accessTokenTtlSeconds: number;
+  impersonationTokenTtlSeconds: number;
   maxAccessTokenTtlSeconds: number;
   strict: boolean;
   isGlobal: boolean;

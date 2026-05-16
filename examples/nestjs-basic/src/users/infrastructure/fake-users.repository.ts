@@ -23,6 +23,20 @@ export class FakeUsersRepository implements UsersRepository {
     return this.users.find((user) => user.email === email);
   }
 
+  async findById(id: string): Promise<User | undefined> {
+    const user = this.users.find((entry) => entry.id === id);
+
+    if (!user) {
+      return undefined;
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      scopes: user.scopes,
+    };
+  }
+
   async findAll(): Promise<User[]> {
     return this.users.map((user) => ({
       id: user.id,

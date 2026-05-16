@@ -1,0 +1,45 @@
+info:
+  name: login user
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{url}}/auth/login"
+  headers:
+    - name: content-type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{user_email}}",
+        "password": "{{password}}"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const body = res.getBody();
+
+        if (body?.accessToken) {
+          const token = String(body.accessToken);
+          bru.setVar("user_token", token);
+
+          try {
+            bru.setEnvVar("user_token", token, { persist: true });
+            console.log("user_token saved with persist:", token);
+          } catch (error) {
+            console.warn("user_token saved as runtime var only. Select the base environment to persist it.", error);
+          }
+        } else {
+          console.error("accessToken not found in response:", body);
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

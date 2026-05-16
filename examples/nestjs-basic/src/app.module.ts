@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { JwtShieldModule } from 'nestjs-jwt-shield';
 import { AdminController } from './admin/admin.controller';
+import { ImpersonateUseCase } from './auth/application/use-cases/impersonate.use-case';
 import { LoginUseCase } from './auth/application/use-cases/login.use-case';
-import { accessTokenClaimsSchema } from './auth/claims/access-token.claims';
+import { jwtClaimsSchema } from './auth/claims/access-token.claims';
 import { AuthController } from './auth/auth.controller';
 import { PublicController } from './public.controller';
 import { UsersRepository } from './users/application/ports/users.repository';
@@ -22,7 +23,8 @@ import { UsersController } from './users/users.controller';
         process.env.JWT_SECRET ??
         'local-development-secret-key-at-least-32-bytes-long',
       accessTokenTtl: '15m',
-      claimsSchema: accessTokenClaimsSchema
+      impersonationTokenTtl: '10m',
+      claimsSchema: jwtClaimsSchema
     })
   ],
   controllers: [
@@ -33,6 +35,7 @@ import { UsersController } from './users/users.controller';
   ],
   providers: [
     LoginUseCase,
+    ImpersonateUseCase,
     ListUsersUseCase,
     {
       provide: UsersRepository,

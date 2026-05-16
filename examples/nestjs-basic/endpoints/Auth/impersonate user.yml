@@ -1,0 +1,52 @@
+info:
+  name: impersonate user
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{url}}/auth/impersonate/22222222-2222-4222-8222-222222222222"
+  headers:
+    - name: authorization
+      value: Bearer {{admin_token}}
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const token = bru.getEnvVar("admin_token") || bru.getVar("admin_token");
+
+        if (!token) {
+          throw new Error("Missing admin_token. Run Auth / login admin first.");
+        }
+
+        req.setHeader("authorization", `Bearer ${token}`);
+    - type: after-response
+      code: |-
+        const body = res.getBody();
+        const status = typeof res.getStatus === "function" ? res.getStatus() : res.status;
+
+        if (status !== 201) {
+          throw new Error(`Expected 201, got ${status}`);
+        }
+
+        if (body?.accessToken) {
+          const token = String(body.accessToken);
+          bru.setVar("impersonation_token", token);
+
+          try {
+            bru.setEnvVar("impersonation_token", token, { persist: true });
+            console.log("impersonation_token saved with persist:", token);
+          } catch (error) {
+            console.warn("impersonation_token saved as runtime var only. Select the base environment to persist it.", error);
+          }
+        } else {
+          throw new Error(`accessToken not found in response: ${JSON.stringify(body)}`);
+        }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

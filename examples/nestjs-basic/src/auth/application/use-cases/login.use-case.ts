@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtShieldService } from "nestjs-jwt-shield";
-import type { AccessTokenClaims } from "../../claims/access-token.claims";
+import type { JwtClaims } from "../../claims/access-token.claims";
 import { UsersRepository } from "../../../users/application/ports/users.repository";
 
 export interface LoginInput {
@@ -18,7 +18,7 @@ export interface LoginOutput {
 export class LoginUseCase {
   constructor(
     private readonly usersRepository: UsersRepository,
-    private readonly jwtShield: JwtShieldService<AccessTokenClaims>,
+    private readonly jwtShield: JwtShieldService<JwtClaims>,
   ) {}
 
   async execute(input: LoginInput): Promise<LoginOutput> {
