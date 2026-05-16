@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Secure-by-default JWT authentication for NestJS.",
   "license": "MIT",
+  "author": "Lucas Hoffmann",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.cjs",
@@ -19,6 +20,14 @@
     "dist",
     "README.md"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucashhoffmann/nestjs-jwt-shield.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lucashhoffmann/nestjs-jwt-shield/issues"
+  },
+  "homepage": "https://github.com/lucashhoffmann/nestjs-jwt-shield#readme",
   "engines": {
     "node": ">=20"
   },
